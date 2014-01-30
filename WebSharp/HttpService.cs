@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -34,7 +35,8 @@ namespace WebSharp
         public delegate IResponse RequestHandler(IRequest request);
         public RequestHandler Request;
 
-        public HttpServiceWrappper(RequestHandler request) : base(stack)
+        public HttpServiceWrappper(RequestHandler request)
+            : base(stack)
         {
             Request = request;
         }
@@ -45,7 +47,8 @@ namespace WebSharp
 
         public override void OnRequest(IRequest request)
         {
-            Send(Request(request));
+            var updated = Request(request);
+            Send(updated);
         }
     }
 }

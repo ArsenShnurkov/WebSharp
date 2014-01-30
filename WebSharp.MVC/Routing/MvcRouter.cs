@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using WebSharp.MVC.Results;
 using WebSharp.Routing;
 using Griffin.Networking.Protocol.Http.Protocol;
 using System.Collections.Generic;
@@ -29,13 +31,20 @@ namespace WebSharp.MVC
 
         public void RegisterController(Controller controller)
         {
-            Controllers.Add(controller);
+            if (Controllers.IndexOf(controller) == -1)
+                Controllers.Add(controller);
         }
 
         public bool Match(IRequest request)
         {
             Dictionary<string, string> values = null;
-            var route = Routes.SingleOrDefault(r => (values = r.Match(request.Uri.LocalPath, CaseInsensitive)) != null);
+            var route = Routes.FirstOrDefault(r =>
+            {
+                var keyPair = r.Match(request.Uri.LocalPath, CaseInsensitive);
+                if (keyPair == null) return false;
+                values = keyPair;
+                return true;
+            });
             if (route == null)
                 return false;
             if (!values.ContainsKey("controller") && !values.ContainsKey("action"))
@@ -53,7 +62,7 @@ namespace WebSharp.MVC
         {
             // TODO: ActionName attribute
             var methods = controller.GetType().GetMethods().Where(m =>
-                m.IsPublic && m.Name.Equals(values ["action"], CaseInsensitive ? StringComparison.CurrentCultureIgnoreCase : StringComparison.CurrentCulture) &&
+                m.IsPublic && m.Name.Equals(values["action"], CaseInsensitive ? StringComparison.CurrentCultureIgnoreCase : StringComparison.CurrentCulture) &&
                 typeof(ActionResult).IsAssignableFrom(m.ReturnType));
             foreach (var method in methods)
             {
@@ -146,7 +155,13 @@ namespace WebSharp.MVC
         public void Execute(IRequest request, IResponse response)
         {
             Dictionary<string, string> values = null;
-            var route = Routes.SingleOrDefault(r => (values = r.Match(request.Uri.LocalPath, CaseInsensitive)) != null);
+            var route = Routes.FirstOrDefault(r =>
+            {
+                var keyPair = r.Match(request.Uri.LocalPath, CaseInsensitive);
+                if (keyPair == null) return false;
+                values = keyPair;
+                return true;
+            });
             if (route == null)
                 throw new HttpNotFoundException("Specified controller was not found.");
             if (!values.ContainsKey("controller") && !values.ContainsKey("action"))
@@ -157,10 +172,14 @@ namespace WebSharp.MVC
                 throw new HttpNotFoundException("Specified controller was not found.");
             object[] parameters;
             var action = ResolveAction(controller, request, values, out parameters);
-            controller.Request = request; controller.Response = response;
+            controller.Request = request; 
+            controller.Response = response;
             controller.ViewBag = new DynamicViewBag();
             var result = (ActionResult)action.Invoke(controller, parameters);
-            result.HandleRequest(request, response);
+
+            if (result != null)
+                result.HandleRequest(request, response);
+
         }
 
         public class MvcRoute
@@ -198,43 +217,56 @@ namespace WebSharp.MVC
             {
                 if (localPath.StartsWith("/"))
                     localPath = localPath.Substring(1);
-                var parts = localPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+                var parts = localPath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                var routeParts = Route.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+
                 Dictionary<string, string> values = new Dictionary<string, string>();
-                for (int i = 0; i < RouteParts.Length; i++)
+
+                // If localPath is not '/' or some variation ex '////////'
+                if (parts.Length != 0 || routeParts.Length != 0)
                 {
-                    if (RouteParts[i].StartsWith("{") && RouteParts[i].EndsWith("}"))
+                    for (int i = 0; i < RouteParts.Length; i++)
                     {
-                        var key = RouteParts[i].Substring(1, RouteParts[i].Length - 2);
-                        if (i >= parts.Length)
+                        if (RouteParts[i].StartsWith("{") && RouteParts[i].EndsWith("}"))
                         {
-                            if (Defaults.ContainsKey(key))
+                            var key = RouteParts[i].Substring(1, RouteParts[i].Length - 2);
+                            if (i >= parts.Length)
                             {
-                                if (!caseInsensitive)
-                                    values[key] = Defaults[key].ToString();
+                                if (Defaults.ContainsKey(key))
+                                {
+                                    if (!caseInsensitive)
+                                        values[key] = Defaults[key].ToString();
+                                    else
+                                        values[key] = Defaults[key].ToString().ToUpper();
+                                }
                                 else
-                                    values[key] = Defaults[key].ToString().ToUpper();
+                                    return null;
                             }
                             else
-                                return null;
+                            {
+                                if (Defaults.ContainsKey(key) && Defaults[key].Equals(parts[i]))
+                                {
+                                    if (!caseInsensitive)
+                                        values[key] = parts[i];
+                                    else
+                                        values[key] = parts[i].ToUpper();
+                                }
+                                else
+                                    return null;
+
+                            }
                         }
                         else
                         {
-                            if (!caseInsensitive)
-                                values[key] = parts[i];
-                            else
-                                values[key] = parts[i].ToUpper();
+                            if (i >= parts.Length || parts[i] != RouteParts[i])
+                                return null;
                         }
                     }
-                    else
-                    {
-                        if (i >= parts.Length || parts[i] != RouteParts[i])
-                            return null;
-                    }
                 }
-                foreach (var item in Defaults)
+                foreach (var item in Defaults.Where(item => !values.ContainsKey(item.Key)))
                 {
-                    if (!values.ContainsKey(item.Key))
-                        values.Add(item.Key, Convert.ToString(item.Value));
+                    values.Add(item.Key, Convert.ToString(item.Value));
                 }
                 return values;
             }

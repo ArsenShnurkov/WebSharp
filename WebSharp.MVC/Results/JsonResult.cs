@@ -1,9 +1,8 @@
-using System;
 using Griffin.Networking.Protocol.Http.Protocol;
 using Newtonsoft.Json;
 using System.IO;
 
-namespace WebSharp.MVC
+namespace WebSharp.MVC.Results
 {
     public class JsonResult : ActionResult
     {
@@ -25,4 +24,3 @@ namespace WebSharp.MVC
         }
     }
 }
-

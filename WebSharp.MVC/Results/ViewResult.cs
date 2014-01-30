@@ -1,16 +1,10 @@
-using System;
-using System.Linq;
-using System.Dynamic;
 using Griffin.Networking.Protocol.Http.Protocol;
 using System.IO;
 using Xipton.Razor;
 using System.Reflection;
-using Xipton.Razor.Config;
-using System.Web.Razor;
 using WebSharp.Exceptions;
-using Xipton.Razor.Core.ContentProvider;
 
-namespace WebSharp.MVC
+namespace WebSharp.MVC.Results
 {
     public class ViewResult : ActionResult
     {
@@ -35,6 +29,13 @@ namespace WebSharp.MVC
         public object Model { get; set; }
         public Controller Controller { get; set; }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ViewResult"/> class.
+        /// </summary>
+        /// <param name="view">The view to render.</param>
+        /// <param name="controller">The controller that is handeling the result.</param>
+        /// <param name="model">The model to give the view.</param>
+        /// <param name="resolveExact">if set to <c>true</c>, path will be resolved by calling object; else it will be resolved automatically.</param>
         public ViewResult(string view, Controller controller, object model = null)
         {
             View = view;
@@ -48,10 +49,9 @@ namespace WebSharp.MVC
             var writer = new StreamWriter(response.Body);
             var path = ResolveView(View);
             if (path == null)
-                throw new HttpNotFoundException(string.Format("Requested view not found. Looking for: {0}", Path.Combine(Controller.Name, View)));
-            string result;
+                throw new HttpNotFoundException(string.Format("Requested view not found. Looking for: <b>{0}</b>", Path.Combine(Controller.Name, View)));
 
-            result = (string)Razor.ExecuteUrl(path.Replace('\\', '/'), Model, Controller.ViewBag, false, true).ToString();
+            string result = (string)Razor.ExecuteUrl(path.Replace('\\', '/'), Model, Controller.ViewBag, false, true).ToString();
 
             writer.Write(result);
             writer.Flush();
@@ -59,10 +59,12 @@ namespace WebSharp.MVC
 
         private string ResolveView(string view)
         {
-            if (File.Exists(Path.Combine(".", ViewBase, Controller.Name, view)))
-                return Path.Combine(Controller.Name, view);
-            return null;
+            string path = null;
+            if(File.Exists(Path.Combine(".", ViewBase, Controller.Name, view)))
+                path = Path.Combine(Controller.Name, view);
+            if (File.Exists(Path.Combine(".", ViewBase, Controller.Name, view + ".cshtml")))
+                path = Path.Combine(Controller.Name, view + ".cshtml");
+            return path;
         }
     }
 }
-

@@ -1,8 +1,7 @@
-using System;
 using Griffin.Networking.Protocol.Http.Protocol;
 using System.IO;
 
-namespace WebSharp.MVC
+namespace WebSharp.MVC.Results
 {
     public class StringResult : ActionResult
     {
@@ -24,4 +23,3 @@ namespace WebSharp.MVC
         }
     }
 }
-

@@ -1,7 +1,6 @@
-using System;
 using Griffin.Networking.Protocol.Http.Protocol;
 
-namespace WebSharp.MVC
+namespace WebSharp.MVC.Results
 {
     public abstract class ActionResult
     {
@@ -13,4 +12,3 @@ namespace WebSharp.MVC
         }
     }
 }
-
